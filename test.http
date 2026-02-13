@@ -1,0 +1,57 @@
+### Test Root Endpoint
+GET http://localhost:8080/
+
+###
+
+### Test Health Check
+GET http://localhost:8080/health
+
+###
+
+### Test Status with Uptime
+GET http://localhost:8080/status
+
+###
+
+### Test Hello with name (GET)
+GET http://localhost:8080/hello?name=Alice
+
+###
+
+### Test Hello without name (should return error)
+GET http://localhost:8080/hello
+
+###
+
+### Test Greet with POST (success)
+POST http://localhost:8080/greet
+Content-Type: application/json
+
+{
+  "name": "Alice"
+}
+
+###
+
+### Test Greet with different name
+POST http://localhost:8080/greet
+Content-Type: application/json
+
+{
+  "name": "Bob"
+}
+
+###
+
+### Test Greet without name (should return error)
+POST http://localhost:8080/greet
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+###
+
+### Test Greet with GET method (should fail)
+GET http://localhost:8080/greet
