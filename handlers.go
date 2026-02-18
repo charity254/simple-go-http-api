@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	//"strconv"
 	"sync"
 	"time"
-
+	
 )
 
 type User struct {
@@ -25,25 +24,61 @@ type UserStore struct {
 	users map[int64] *User
 	nextID int64
 }
+type CreateUserRequest struct {
+	Name string `json:"name"`
+}
 
 var store = &UserStore{ //REVISIT!!!!!
 	users: make(map[int64]*User),
 	nextID: 1,
 }
-func (s *UserStore) Create(u *User){
+func (s *UserStore) Create(name string)*User{
 	s.mu.Lock() //prevents concurrent writes
 	defer s.mu.Unlock()//unlock even in panic
-
-	u.ID = s.nextID
+	u := &User {
+		ID : s.nextID,
+		Name: name, 
+		CreatedAt: time.Now(),
+	}
 	s.nextID++
-
-	s.users[u.ID] = u
+	s.users[u.ID]=u
+	return u
 }
 func (s *UserStore) GetById(id int64)(* User, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	u, ok := s.users[id]
 	return u, ok
+}
+func (s *UserStore) List() []*User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	list := make([]*User, 0, len(s.users))
+	for _, u := range s.users {
+		list = append(list, u)
+	}
+	return list
+}
+func createUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "Only POST method allowed")
+		return
+	}
+	defer r.Body.Close()
+	var person CreateUserRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&person); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+	if person.Name == ""{
+		writeError(w, http.StatusBadRequest, "Name is required")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(store.Create(person.Name))
 }
 
 func writeError( w http.ResponseWriter, status int, message string) {
