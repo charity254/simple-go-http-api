@@ -1,6 +1,6 @@
 # Simple Go HTTP API
 
-A basic HTTP API built with Go that demonstrates fundamental web server concepts including JSON responses, query parameters, request body parsing, and HTTP method validation.
+A basic HTTP API built with Go that demonstrates fundamental web server concepts including JSON responses, query parameters, request body parsing, HTTP method validation, and in-memory data storage with concurrent access.
 
 ## What the Service Does
 
@@ -11,6 +11,7 @@ This is a simple HTTP server with multiple endpoints that return JSON responses:
 - **`/status`** - Returns service status with uptime information
 - **`/hello`** - Returns a personalized greeting from query parameters (GET)
 - **`/greet`** - Returns a personalized greeting from JSON body (POST)
+- **`/users`** - User management endpoints (POST to create, GET to list/retrieve)
 
 ## Features
 
@@ -21,15 +22,16 @@ This is a simple HTTP server with multiple endpoints that return JSON responses:
 - ✅ Proper error handling with status codes
 - ✅ Reusable error response function
 - ✅ Service uptime tracking
+- ✅ Thread-safe in-memory user storage with RWMutex**
+- ✅ CRUD operations for user management**
 - ✅ Clean code organization with separate handler file
 
 ## Project Structure
-
 ```
 simple-go-http-api/
 ├── main.go       # Main server setup and routing
-├── handlers.go   # HTTP handler functions
-├── api.http      # REST Client test file
+├── handlers.go   # HTTP handler functions and UserStore
+├── test.http     # REST Client test file
 └── README.md     # This file
 ```
 
@@ -43,18 +45,18 @@ simple-go-http-api/
 1. Make sure you have both `main.go` and `handlers.go` in the same directory
 
 2. Run the server:
-   ```bash
+```bash
    go run .
-   ```
+```
    or 
-   ```
+```
    go run main.go handlers.go
-   ```
+```
 
 3. You should see:
-   ```
+```
    Server starting on http://localhost:8080/
-   ```
+```
 
 4. The server is now running at `http://localhost:8080`
 
@@ -222,6 +224,84 @@ GET http://localhost:8080/greet
 
 ---
 
+### User Management Endpoints
+
+#### Create User (POST /users)
+
+**Request:**
+```bash
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "John Doe"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "created_at": "2026-02-20T10:30:00Z"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid JSON or empty name
+- `405 Method Not Allowed` - Wrong HTTP method
+
+---
+
+#### List All Users (GET /users)
+
+**Request:**
+```bash
+GET http://localhost:8080/users
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "name": "John Doe",
+    "created_at": "2026-02-20T10:30:00Z"
+  },
+  {
+    "id": 2,
+    "name": "Jane Smith",
+    "created_at": "2026-02-20T10:31:00Z"
+  }
+]
+```
+
+Returns empty array `[]` if no users exist.
+
+---
+
+#### Get User by ID (GET /users?id={id})
+
+**Request:**
+```bash
+GET http://localhost:8080/users?id=1
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "created_at": "2026-02-20T10:30:00Z"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid or missing ID
+- `404 Not Found` - User doesn't exist
+
+---
+
 ## Testing the API
 
 ### Option 1: Using the Browser (GET requests only)
@@ -230,12 +310,16 @@ GET http://localhost:8080/greet
 - Health check: `http://localhost:8080/health`
 - Status with uptime: `http://localhost:8080/status`
 - Hello with name: `http://localhost:8080/hello?name=YourName`
+- List all users: `http://localhost:8080/users`
+- Get user by ID: `http://localhost:8080/users?id=1`
 
 ### Option 2: Using curl (Command Line)
 
 **GET requests:**
 ```bash
 curl http://localhost:8080/hello?name=Alice
+curl http://localhost:8080/users
+curl http://localhost:8080/users?id=1
 ```
 
 **POST requests:**
@@ -243,16 +327,20 @@ curl http://localhost:8080/hello?name=Alice
 curl -X POST http://localhost:8080/greet \
   -H "Content-Type: application/json" \
   -d '{"name":"Alice"}'
+
+curl -X POST http://localhost:8080/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"John Doe"}'
 ```
 
 ### Option 3: Using VS Code REST Client Extension
 
 1. Install the "REST Client" extension in VS Code
-2. Open the `api.http` file
+2. Open the `test.http` file
 3. Click "Send Request" above any request
 4. View the response in the split panel
 
-The `api.http` file includes test cases for all endpoints with various scenarios.
+The `test.http` file includes test cases for all endpoints with various scenarios.
 
 ### Option 4: Using Postman
 
@@ -273,7 +361,9 @@ The API uses standard HTTP status codes:
 | Status Code | Meaning | When Used |
 |-------------|---------|-----------|
 | 200 | OK | Request succeeded |
+| 201 | Created | Resource created successfully |
 | 400 | Bad Request | Invalid input (missing parameters, invalid JSON) |
+| 404 | Not Found | Resource not found |
 | 405 | Method Not Allowed | Wrong HTTP method used |
 | 500 | Internal Server Error | Server error (not currently implemented) |
 
@@ -297,9 +387,10 @@ All errors return a consistent JSON format:
 - Request handler functions
 - JSON encoding/decoding
 - Error handling logic
-- Data structures (User, StatusResponse, errorResponse)
+- UserStore implementation with thread-safe operations
+- Data structures (User, UserStore, CreateUserRequest, StatusResponse, errorResponse)
 
-**`api.http`**
+**`test.http`**
 - Test cases for all endpoints
 - Example requests for development
 
@@ -310,7 +401,18 @@ All errors return a consistent JSON format:
 - `getHealth()` - Health check endpoint
 - `getStatus()` - Service status with uptime
 - `getHello()` - Greeting from query parameters
-- `getGreet()` - Greeting from JSON body with POST validation
+- `postGreet()` - Greeting from JSON body with POST validation
+- `handleUsers()` - Dispatcher for user management endpoints
+- `createUser()` - Creates a new user
+- `listUsers()` - Returns all users
+- `getUser()` - Returns a single user by ID
+
+### UserStore
+
+Thread-safe in-memory storage using `sync.RWMutex`:
+- `Create(name string) *User` - Creates and stores a new user
+- `GetById(id int64) (*User, bool)` - Retrieves a user by ID
+- `List() []*User` - Returns all users
 
 ## Stopping the Server
 
@@ -325,6 +427,9 @@ Press `Ctrl + C` in the terminal where the server is running.
 | `/status` | GET | None | application/json | `{"service": "running", "uptime": "..."}` | - |
 | `/hello` | GET | `name` (query) | application/json | `{"message": "Hello, {name}!"}` | 400 |
 | `/greet` | POST | `{"name": "..."}` (body) | application/json | `{"message": "Hello {name}"}` | 400, 405 |
+| `/users` | POST | `{"name": "..."}` (body) | application/json | User object with ID | 400, 405 |
+| `/users` | GET | None | application/json | Array of users | 405 |
+| `/users` | GET | `id` (query) | application/json | Single user object | 400, 404, 405 |
 
 ## Learning Concepts Demonstrated
 
@@ -340,15 +445,8 @@ This project demonstrates:
 - Using structs for structured data
 - Request validation
 - Testing APIs with REST Client
+- Thread-safe concurrent data access with sync.RWMutex**
+- In-memory data persistence**
+- CRUD operations**
+- Method routing and dispatching**
 
-## Next Steps
-
-Potential enhancements:
-- Add more endpoints (UPDATE, DELETE)
-- Connect to a database
-- Add authentication/authorization
-- Add request logging middleware
-- Add unit tests
-- Add environment configuration
-- Implement graceful shutdown
-- Add rate limiting
