@@ -55,3 +55,71 @@ Content-Type: application/json
 
 ### Test Greet with GET method (should fail)
 GET http://localhost:8080/greet
+
+### Create a new user
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "John Doe"
+}
+
+###
+
+### Create another user
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "Jane Smith"
+}
+
+###
+
+### Create user with empty name (should fail)
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+###
+
+### Create user with invalid JSON (should fail)
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "Bob"
+  // missing closing brace
+
+###
+
+### List all users
+GET http://localhost:8080/users
+
+###
+
+### Get user by ID (use ID from create response)
+GET http://localhost:8080/users?id=1
+
+###
+
+### Get user by ID that doesn't exist (should return 404)
+GET http://localhost:8080/users?id=999
+
+###
+
+### Get user with invalid ID (should return 400)
+GET http://localhost:8080/users?id=abc
+
+###
+
+### Get user with missing ID (should return all users)
+GET http://localhost:8080/users?id=
+
+###
+
+### Try POST with wrong method on root
+GET http://localhost:8080/users
