@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
-	
 )
 
 type User struct {
@@ -61,10 +61,6 @@ func (s *UserStore) List() []*User {
 	return list
 }
 func createUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Only POST method allowed")
-		return
-	}
 	defer r.Body.Close()
 	var person CreateUserRequest
 	decoder := json.NewDecoder(r.Body)
@@ -87,6 +83,34 @@ func writeError( w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(errorResponse{
 		Error: message,
 	})
+}
+func listUsers(w http.ResponseWriter, r *http.Request){
+	
+	list := store.List()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(list)
+}
+func getUser(w http.ResponseWriter, r *http.Request){
+	id := r.URL.Query().Get("id")
+	if id == ""{
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	Id, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	user, ok := store.GetById(Id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "User Not Found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(user)
+
 }
 
 func getRoot(w http.ResponseWriter, _ *http.Request) {
@@ -120,27 +144,27 @@ func postGreet(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func postUsers(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Only POST method allowed")
-		return
-	}
-	defer r.Body.Close()
+// func postUsers(w http.ResponseWriter, r *http.Request) {
+// 	if r.Method != http.MethodPost {
+// 		writeError(w, http.StatusMethodNotAllowed, "Only POST method allowed")
+// 		return
+// 	}
+// 	defer r.Body.Close()
 
-	var person User
-	decoder :=  json.NewDecoder(r.Body)
-	if err := decoder.Decode(&person); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON body")
-		return
-	}
-	if person.Name == ""{
-		writeError(w, http.StatusBadRequest, "Name is required")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated) //201 created
-	json.NewEncoder(w).Encode(person)
-}
+// 	var person User
+// 	decoder :=  json.NewDecoder(r.Body)
+// 	if err := decoder.Decode(&person); err != nil {
+// 		writeError(w, http.StatusBadRequest, "Invalid JSON body")
+// 		return
+// 	}
+// 	if person.Name == ""{
+// 		writeError(w, http.StatusBadRequest, "Name is required")
+// 		return
+// 	}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.WriteHeader(http.StatusCreated) //201 created
+// 	json.NewEncoder(w).Encode(person)
+// }
 
 func getHello(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
@@ -178,4 +202,19 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(response)
 	
+}
+func handleUsers(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost :
+			createUser(w, r)
+	case http.MethodGet:
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			listUsers(w, r)
+		} else {
+			getUser(w, r)
+		}
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "Not A valid Request")
+	}
 }
